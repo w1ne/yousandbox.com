@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh pr merge 1 --squash --delete-branch)",
+      "Bash(gh run list --repo w1ne/yousandbox.com --limit 3)",
+      "Bash(gh run view 22681590053 --repo w1ne/yousandbox.com --log-failed)"
+    ]
+  }
+}

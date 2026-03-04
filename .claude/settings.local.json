@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh auth status)",
+      "Bash(git --version)",
+      "Bash(git branch -m main)",
+      "Bash(gh repo create yousandbox.com --public --description \"Zero-install, local-first Linux environment in any browser tab\" --push --source=.)"
+    ]
+  }
+}

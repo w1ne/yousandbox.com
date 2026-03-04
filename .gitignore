@@ -1,0 +1,28 @@
+# Logs
+logs
+*.log
+
+# Dependencies
+node_modules
+
+# Build output
+dist
+
+# Vite cache
+.vite
+
+# Playwright
+playwright-report
+test-results
+
+# Env files
+.env
+.env.local
+
+# Large Wasm/disk images — download separately, never commit
+public/wasm/images/*.img
+public/wasm/images/*.gz
+public/wasm/*.bin
+
+# OS
+.DS_Store
