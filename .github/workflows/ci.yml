@@ -6,43 +6,91 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   typecheck:
     name: typecheck
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Skip if no package.json
+        id: check
+        run: echo "has_pkg=$(test -f package.json && echo true || echo false)" >> $GITHUB_OUTPUT
       - uses: actions/setup-node@v4
+        if: steps.check.outputs.has_pkg == 'true'
         with:
           node-version: 20
-          cache: npm
+      - name: Cache node_modules
+        if: steps.check.outputs.has_pkg == 'true'
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: nm-${{ runner.os }}-
       - run: npm ci
+        if: steps.check.outputs.has_pkg == 'true'
       - run: npm run typecheck
+        if: steps.check.outputs.has_pkg == 'true'
 
   test:
     name: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Skip if no package.json
+        id: check
+        run: echo "has_pkg=$(test -f package.json && echo true || echo false)" >> $GITHUB_OUTPUT
       - uses: actions/setup-node@v4
+        if: steps.check.outputs.has_pkg == 'true'
         with:
           node-version: 20
-          cache: npm
+      - name: Cache node_modules
+        if: steps.check.outputs.has_pkg == 'true'
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: nm-${{ runner.os }}-
       - run: npm ci
+        if: steps.check.outputs.has_pkg == 'true'
       - run: npm run test:run
+        if: steps.check.outputs.has_pkg == 'true'
 
   e2e:
     name: e2e
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Skip if no package.json
+        id: check
+        run: echo "has_pkg=$(test -f package.json && echo true || echo false)" >> $GITHUB_OUTPUT
       - uses: actions/setup-node@v4
+        if: steps.check.outputs.has_pkg == 'true'
         with:
           node-version: 20
-          cache: npm
+      - name: Cache node_modules
+        if: steps.check.outputs.has_pkg == 'true'
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: nm-${{ runner.os }}-
+      - name: Cache Playwright browsers
+        if: steps.check.outputs.has_pkg == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: playwright-${{ runner.os }}-
       - run: npm ci
+        if: steps.check.outputs.has_pkg == 'true'
       - run: npx playwright install --with-deps chromium
+        if: steps.check.outputs.has_pkg == 'true'
       - run: npm run test:e2e
+        if: steps.check.outputs.has_pkg == 'true'
         env:
           CI: true
 
@@ -53,13 +101,26 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
+      - name: Skip if no package.json
+        id: check
+        run: echo "has_pkg=$(test -f package.json && echo true || echo false)" >> $GITHUB_OUTPUT
       - uses: actions/setup-node@v4
+        if: steps.check.outputs.has_pkg == 'true'
         with:
           node-version: 20
-          cache: npm
+      - name: Cache node_modules
+        if: steps.check.outputs.has_pkg == 'true'
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: nm-${{ runner.os }}-
       - run: npm ci
+        if: steps.check.outputs.has_pkg == 'true'
       - run: npm run build
+        if: steps.check.outputs.has_pkg == 'true'
       - uses: cloudflare/wrangler-action@v3
+        if: steps.check.outputs.has_pkg == 'true'
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
