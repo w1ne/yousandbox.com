@@ -62,6 +62,32 @@ yousandbox.com/
 
 ---
 
+## Git Workflow (Trunk-Based Development)
+
+We use trunk-based development. `main` is always deployable.
+
+**Rules:**
+- `main` is protected — direct pushes are blocked, force push is disabled
+- All changes go through a PR, no exceptions
+- PRs must pass all three CI checks (`typecheck`, `test`, `e2e`) before merging
+- Linear history only — squash or rebase merge, no merge commits
+- Keep branches short-lived (ideally merged within a day or two)
+- Branch naming: `feat/short-description`, `fix/short-description`, `chore/short-description`
+
+**Typical flow:**
+```bash
+git checkout -b feat/my-feature   # branch off main
+# ... make changes ...
+npm run typecheck && npm run test:run   # verify locally before pushing
+git push origin feat/my-feature
+gh pr create                       # open PR — CI runs automatically
+# once green, squash and merge via GitHub UI
+```
+
+Never commit directly to `main`. Never use `--no-verify`. Never force push.
+
+---
+
 ## Commands
 
 ```bash

@@ -363,9 +363,12 @@ Exit gate:
 Depends on: scaffold
 
 Exit gate:
-- [ ] GitHub Actions workflow runs `typecheck`, `test:run`, and `test:e2e` (Playwright, Chromium) on every PR
+- [ ] GitHub Actions workflow runs `typecheck`, `test`, and `e2e` jobs (Playwright, Chromium) on every PR
+- [ ] All three jobs must pass before a PR can be merged (branch protection enforces this)
 - [ ] Merge to `main` triggers automatic deploy to Cloudflare Pages via GitHub Actions
-- [ ] A failed check blocks merge — branch protection rules enforce this
+- [ ] Direct push to `main` is blocked — all changes go through PRs
+- [ ] Force push to `main` is disabled
+- [ ] Linear history is enforced (squash or rebase merge only, no merge commits)
 - [ ] COOP/COEP headers are set via `public/_headers` and verified in the E2E run
 - [ ] Cloudflare Pages deploy token is stored as a GitHub Actions secret, never committed
 - [ ] E2E: GitHub Actions run completes green on a clean checkout of `main`
