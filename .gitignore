@@ -19,10 +19,8 @@ test-results
 .env
 .env.local
 
-# Large Wasm/disk images — download separately, never commit
-public/wasm/images/*.img
-public/wasm/images/*.gz
-public/wasm/*.bin
+# v86 binary assets — run `node scripts/download-v86.mjs` to fetch
+public/v86/
 
 # OS
 .DS_Store

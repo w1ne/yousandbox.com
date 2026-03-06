@@ -1,14 +1,20 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
+import type { Terminal as XTerm } from '@xterm/xterm'
 import FileTree from './components/layout/FileTree'
 import CodeEditor from './components/layout/CodeEditor'
 import Preview from './components/layout/Preview'
 import Terminal from './components/layout/Terminal'
 import { adjustLeftHandle, adjustRightHandle, PaneWidths } from './lib/layout/paneResize'
+import { V86Engine, type BootState } from './lib/v86/engine'
 
+// ---- layout constants -------------------------------------------------------
 const INITIAL_COL_WIDTHS: PaneWidths = { left: 15, center: 52, right: 33 }
 const INITIAL_TERM_HEIGHT = 30 // % of total height
 const MIN_TERM_HEIGHT = 15
 const MAX_TERM_HEIGHT = 60
+
+// ---- v86 config -------------------------------------------------------------
+const LINUX_IMAGE_URL = 'https://copy.sh/v86/images/linux4.iso'
 
 interface DragState {
     type: 'left' | 'right' | 'terminal'
@@ -18,12 +24,27 @@ interface DragState {
     startTermHeight: number
 }
 
+const BOOT_LABEL: Record<BootState, string> = {
+    idle: 'Boot',
+    booting: 'Booting…',
+    running: 'Running',
+    error: 'Retry',
+    timeout: 'Retry',
+}
+
 export default function App() {
+    // pane layout
     const [colWidths, setColWidths] = useState<PaneWidths>(INITIAL_COL_WIDTHS)
     const [termHeight, setTermHeight] = useState(INITIAL_TERM_HEIGHT)
     const containerRef = useRef<HTMLDivElement>(null)
     const dragRef = useRef<DragState | null>(null)
 
+    // v86
+    const [bootState, setBootState] = useState<BootState>('idle')
+    const engineRef = useRef<V86Engine | null>(null)
+    const terminalRef = useRef<XTerm | null>(null)
+
+    // ---- drag-resize --------------------------------------------------------
     const onMouseDown = useCallback(
         (type: DragState['type']) =>
             (e: React.MouseEvent) => {
@@ -75,6 +96,45 @@ export default function App() {
         }
     }, [])
 
+    // ---- boot ---------------------------------------------------------------
+    const handleBoot = useCallback(async () => {
+        if (bootState === 'booting' || bootState === 'running') return
+
+        // Dispose previous engine on retry
+        if (engineRef.current) {
+            await engineRef.current.dispose()
+            engineRef.current = null
+        }
+
+        if (!terminalRef.current) return
+
+        const engine = new V86Engine()
+        engineRef.current = engine
+        engine.onStateChange(setBootState)
+
+        try {
+            await engine.boot({
+                terminal: terminalRef.current,
+                imageUrl: LINUX_IMAGE_URL,
+            })
+        } catch {
+            // state already set to 'error' by engine
+        }
+    }, [bootState])
+
+    const handleTerminalData = useCallback((data: string) => {
+        engineRef.current?.sendInput(data)
+    }, [])
+
+    const handleTerminalReady = useCallback((terminal: XTerm) => {
+        terminalRef.current = terminal
+    }, [])
+
+    // ---- boot state indicator -----------------------------------------------
+    const isBooting = bootState === 'booting'
+    const isError = bootState === 'error' || bootState === 'timeout'
+    const bootDisabled = isBooting || bootState === 'running'
+
     return (
         <div
             ref={containerRef}
@@ -92,18 +152,41 @@ export default function App() {
                 </select>
                 <select
                     className="bg-[#21262d] border border-[#30363d] rounded px-2 py-1 text-xs text-[#e6edf3] cursor-pointer"
-                    defaultValue="persistent"
+                    defaultValue="burner"
                     aria-label="Mode"
                 >
-                    <option value="persistent">Persistent</option>
                     <option value="burner">Burner</option>
                 </select>
+
+                {/* Boot button */}
                 <button
-                    className="ml-2 bg-[#238636] hover:bg-[#2ea043] active:bg-[#26a641] text-white text-xs px-3 py-1 rounded font-semibold transition-colors"
+                    onClick={() => void handleBoot()}
+                    disabled={bootDisabled}
                     aria-label="Boot sandbox"
+                    data-testid="boot-button"
+                    className={[
+                        'ml-2 text-white text-xs px-3 py-1 rounded font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+                        isError
+                            ? 'bg-[#da3633] hover:bg-[#b62324]'
+                            : 'bg-[#238636] hover:bg-[#2ea043] active:bg-[#26a641]',
+                    ].join(' ')}
                 >
-                    Boot
+                    {BOOT_LABEL[bootState]}
                 </button>
+
+                {/* Status indicator */}
+                {(isBooting || isError) && (
+                    <span
+                        className={`text-xs ${isError ? 'text-[#f85149]' : 'text-[#8b949e] animate-pulse'}`}
+                        data-testid="boot-status"
+                    >
+                        {bootState === 'timeout'
+                            ? 'Boot timed out'
+                            : bootState === 'error'
+                              ? 'Failed to start sandbox'
+                              : 'Starting…'}
+                    </span>
+                )}
             </header>
 
             {/* Body: columns + terminal */}
@@ -114,7 +197,6 @@ export default function App() {
                     style={{ height: `${100 - termHeight}%` }}
                     data-testid="columns-row"
                 >
-                    {/* Files pane */}
                     <div
                         className="overflow-hidden shrink-0"
                         style={{ width: `${colWidths.left}%` }}
@@ -123,14 +205,12 @@ export default function App() {
                         <FileTree />
                     </div>
 
-                    {/* Left resize handle */}
                     <div
                         className="w-1 shrink-0 cursor-col-resize bg-[#30363d] hover:bg-[#58a6ff] transition-colors"
                         onMouseDown={onMouseDown('left')}
                         data-testid="resize-handle-left"
                     />
 
-                    {/* Editor pane */}
                     <div
                         className="overflow-hidden shrink-0"
                         style={{ width: `${colWidths.center}%` }}
@@ -139,33 +219,29 @@ export default function App() {
                         <CodeEditor />
                     </div>
 
-                    {/* Right resize handle */}
                     <div
                         className="w-1 shrink-0 cursor-col-resize bg-[#30363d] hover:bg-[#58a6ff] transition-colors"
                         onMouseDown={onMouseDown('right')}
                         data-testid="resize-handle-right"
                     />
 
-                    {/* Preview pane — takes remaining space */}
                     <div className="overflow-hidden flex-1" data-testid="pane-preview">
                         <Preview />
                     </div>
                 </div>
 
-                {/* Terminal resize handle */}
                 <div
                     className="h-1 shrink-0 cursor-row-resize bg-[#30363d] hover:bg-[#58a6ff] transition-colors border-t border-[#21262d]"
                     onMouseDown={onMouseDown('terminal')}
                     data-testid="resize-handle-terminal"
                 />
 
-                {/* Terminal pane */}
                 <div
                     className="overflow-hidden shrink-0 border-t border-[#30363d]"
                     style={{ height: `${termHeight}%` }}
                     data-testid="pane-terminal"
                 >
-                    <Terminal />
+                    <Terminal onReady={handleTerminalReady} onData={handleTerminalData} />
                 </div>
             </div>
         </div>

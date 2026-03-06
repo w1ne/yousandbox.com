@@ -13,7 +13,6 @@ test.describe('4-pane layout', () => {
     })
 
     test('editor is visible and accepts keyboard input', async ({ page }) => {
-        // Monaco loads asynchronously — wait for the textarea it injects
         const editorTextarea = page
             .getByTestId('pane-editor')
             .locator('textarea.inputarea')
@@ -22,7 +21,6 @@ test.describe('4-pane layout', () => {
         await editorTextarea.focus()
         await page.keyboard.type('print("hello")')
 
-        // Monaco keeps value in its model — check the line content element
         await expect(
             page.getByTestId('pane-editor').locator('.view-line').first(),
         ).toContainText('print')
@@ -36,7 +34,6 @@ test.describe('4-pane layout', () => {
 
     test('layout is stable at 1280px width', async ({ page }) => {
         await page.setViewportSize({ width: 1280, height: 800 })
-        // No pane should overflow or collapse (all must remain visible)
         await expect(page.getByTestId('pane-files')).toBeVisible()
         await expect(page.getByTestId('pane-editor')).toBeVisible()
         await expect(page.getByTestId('pane-preview')).toBeVisible()
@@ -49,17 +46,45 @@ test.describe('4-pane layout', () => {
         await expect(page.getByTestId('pane-preview')).toBeVisible()
     })
 
-    test('Python syntax is highlighted in the editor', async ({ page }) => {
-        // Wait for Monaco to fully initialise
+    test('Python syntax highlighting is active in the editor', async ({ page }) => {
         const editorArea = page.getByTestId('pane-editor')
-        await expect(editorArea.locator('textarea.inputarea')).toBeVisible({
-            timeout: 15_000,
-        })
-
-        // Monaco sets a data-mode-id attribute on its container once the language is loaded
+        await expect(editorArea.locator('textarea.inputarea')).toBeVisible({ timeout: 15_000 })
         const container = editorArea.locator('[data-mode-id]')
-        await expect(container).toHaveAttribute('data-mode-id', 'python', {
-            timeout: 10_000,
+        await expect(container).toHaveAttribute('data-mode-id', 'python', { timeout: 10_000 })
+    })
+})
+
+test.describe('v86 engine boot', () => {
+    test.beforeEach(async ({ page }) => {
+        await page.goto('/')
+    })
+
+    test('Boot button is visible and enabled', async ({ page }) => {
+        const btn = page.getByTestId('boot-button')
+        await expect(btn).toBeVisible()
+        await expect(btn).toBeEnabled()
+        await expect(btn).toContainText('Boot')
+    })
+
+    test('Boot button transitions to Booting… on click', async ({ page }) => {
+        await page.getByTestId('boot-button').click()
+        // Should immediately reflect the loading state
+        await expect(page.getByTestId('boot-button')).toContainText('Booting…', {
+            timeout: 3_000,
+        })
+    })
+
+    test('terminal shows shell prompt within 45s after boot', async ({ page }) => {
+        await page.getByTestId('boot-button').click()
+
+        // Wait for the xterm canvas/rows to appear with a shell prompt character
+        const terminal = page.getByTestId('terminal')
+        await expect(terminal).toBeVisible()
+
+        // v86 outputs to xterm which renders to canvas; the accessible text rows
+        // contain the shell prompt once Linux has fully booted.
+        await expect(terminal.locator('.xterm-rows')).toContainText('$', {
+            timeout: 45_000,
         })
     })
 })
