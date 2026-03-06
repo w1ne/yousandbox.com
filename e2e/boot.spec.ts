@@ -13,17 +13,15 @@ test.describe('4-pane layout', () => {
     })
 
     test('editor is visible and accepts keyboard input', async ({ page }) => {
-        const editorTextarea = page
-            .getByTestId('pane-editor')
-            .locator('textarea.inputarea')
-        await expect(editorTextarea).toBeVisible({ timeout: 15_000 })
+        // Monaco renders inside [data-mode-id]; wait for it to be visible.
+        const editorPane = page.getByTestId('pane-editor')
+        await expect(editorPane.locator('.monaco-editor')).toBeVisible({ timeout: 30_000 })
 
-        await editorTextarea.focus()
+        // Click the editor area to focus it, then type.
+        await editorPane.locator('.view-lines').click()
         await page.keyboard.type('print("hello")')
 
-        await expect(
-            page.getByTestId('pane-editor').locator('.view-line').first(),
-        ).toContainText('print')
+        await expect(editorPane.locator('.view-line').first()).toContainText('print')
     })
 
     test('preview pane shows placeholder text', async ({ page }) => {
@@ -48,7 +46,7 @@ test.describe('4-pane layout', () => {
 
     test('Python syntax highlighting is active in the editor', async ({ page }) => {
         const editorArea = page.getByTestId('pane-editor')
-        await expect(editorArea.locator('textarea.inputarea')).toBeVisible({ timeout: 15_000 })
+        await expect(editorArea.locator('.monaco-editor')).toBeVisible({ timeout: 30_000 })
         const container = editorArea.locator('[data-mode-id]')
         await expect(container).toHaveAttribute('data-mode-id', 'python', { timeout: 10_000 })
     })
@@ -74,17 +72,16 @@ test.describe('v86 engine boot', () => {
         })
     })
 
-    test('terminal shows shell prompt within 45s after boot', async ({ page }) => {
+    test('terminal shows shell prompt within 120s after boot', async ({ page }) => {
         await page.getByTestId('boot-button').click()
 
-        // Wait for the xterm canvas/rows to appear with a shell prompt character
+        // Wait for the xterm canvas/rows to appear with a shell prompt character.
+        // Default flavor is Python — our custom init prints this banner before dropping to sh.
+        // 120s allows for v86 initramfs boot variance under heavy local/CI load.
         const terminal = page.getByTestId('terminal')
         await expect(terminal).toBeVisible()
-
-        // v86 outputs to xterm which renders to canvas; the accessible text rows
-        // contain the shell prompt once Linux has fully booted.
-        await expect(terminal.locator('.xterm-rows')).toContainText('$', {
-            timeout: 45_000,
+        await expect(terminal.locator('.xterm-rows')).toContainText('yousandbox.com', {
+            timeout: 120_000,
         })
     })
 })

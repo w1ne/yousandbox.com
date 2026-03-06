@@ -40,5 +40,18 @@ for (const [url, filename] of biosFiles) {
     process.stdout.write('done\n')
 }
 
+// 3. Download disk image — served locally to avoid CORS (copy.sh has no CORS headers)
+const images = [
+    ['https://copy.sh/v86/images/linux4.iso', 'linux4.iso'],
+]
+
+for (const [url, filename] of images) {
+    const dest = join(OUT, filename)
+    process.stdout.write(`  ${filename} (disk image, may be large) … `)
+    const res = await fetch(url)
+    if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${url}`)
+    await pipeline(res.body, createWriteStream(dest))
+    process.stdout.write('done\n')
+}
+
 console.log(`\nAll v86 assets written to public/v86/`)
-console.log('Note: disk images are fetched at runtime for Phase 1.')

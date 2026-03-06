@@ -12,12 +12,8 @@ declare module 'v86' {
         hda?: { url: string; async?: boolean; size?: number }
         bzimage?: { url: string }
         initrd?: { url: string }
+        cmdline?: string
         autostart?: boolean
-        // xterm integration — typed loosely to avoid coupling to @xterm/xterm here
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        serial_container_xtermjs?: any
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        xterm_lib?: any
         network_relay_url?: string
         [key: string]: unknown
     }

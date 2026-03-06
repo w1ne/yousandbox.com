@@ -92,8 +92,9 @@ describe('V86Engine', () => {
         expect(cfg.vga_bios).toEqual({ url: '/v86/vgabios.bin' })
         expect(cfg.memory_size).toBe(128 * 1024 * 1024)
         expect(cfg.cdrom).toMatchObject({ url: 'https://example.com/linux.iso' })
-        expect(cfg.serial_container_xtermjs).toBe(terminal)
         expect(cfg.autostart).toBe(true)
+        // Serial I/O is bridged via add_listener('serial0-output-byte'), not serial_container_xtermjs
+        expect(cfg.serial_container_xtermjs).toBeUndefined()
     })
 
     it('sendInput() calls serial0_send on the emulator', async () => {

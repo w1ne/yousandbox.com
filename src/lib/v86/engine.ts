@@ -6,8 +6,17 @@ export type BootState = 'idle' | 'booting' | 'running' | 'error' | 'timeout'
 export interface BootOptions {
     /** xterm.js Terminal instance for serial I/O */
     terminal: XTerm
-    /** URL of the disk/CD image to boot */
-    imageUrl: string
+    /** URL of the disk/CD image (cdrom when no kernelUrl; hda when kernelUrl present; omit for initramfs-only boot) */
+    imageUrl?: string
+    /**
+     * URL of a bzImage kernel. When provided, boots via bzimage+hda instead of cdrom.
+     * Use for flavors that ship a separate kernel (e.g. Python/Alpine).
+     */
+    kernelUrl?: string
+    /** URL of an initrd/initramfs image (required when kernelUrl is set and kernel has ext4 as a module) */
+    initrdUrl?: string
+    /** Kernel cmdline (only used when kernelUrl is set; default: "root=/dev/sda rw console=ttyS0 quiet") */
+    cmdline?: string
     /** Base URL for v86 wasm + BIOS assets (default: /v86) */
     baseUrl?: string
     /** RAM in MiB (default: 256) */
@@ -53,11 +62,19 @@ export class V86Engine {
 
         try {
             const { V86 } = await import('v86')
-            const Terminal = opts.terminal.constructor as typeof XTerm
 
             // Guard: timeout may have fired while v86 was loading.
             // Use the public getter to bypass TS's overly-narrow control flow analysis.
             if (this.state !== 'booting') return
+
+            const diskConfig = opts.kernelUrl
+                ? {
+                      bzimage: { url: opts.kernelUrl },
+                      ...(opts.initrdUrl ? { initrd: { url: opts.initrdUrl } } : {}),
+                      ...(opts.imageUrl ? { hda: { url: opts.imageUrl, async: true } } : {}),
+                      cmdline: opts.cmdline ?? 'root=/dev/sda rw console=ttyS0 quiet',
+                  }
+                : { cdrom: { url: opts.imageUrl as string, async: true } }
 
             const config = {
                 wasm_path: `${base}/v86.wasm`,
@@ -65,13 +82,18 @@ export class V86Engine {
                 vga_memory_size: 8 * 1024 * 1024,
                 bios: { url: `${base}/seabios.bin` },
                 vga_bios: { url: `${base}/vgabios.bin` },
-                cdrom: { url: opts.imageUrl, async: true },
                 autostart: true,
-                serial_container_xtermjs: opts.terminal,
-                xterm_lib: Terminal,
+                ...diskConfig,
             }
 
             this.emulator = new V86(config) as unknown as V86Instance
+
+            // Bridge serial output to our xterm terminal directly.
+            // v86's serial_container_xtermjs creates a new terminal internally
+            // (it expects an HTMLElement, not our existing Terminal instance).
+            this.emulator.add_listener('serial0-output-byte', (byte: unknown) => {
+                opts.terminal.write(Uint8Array.of(byte as number))
+            })
 
             this.emulator.add_listener('emulator-started', () => {
                 if (this._state === 'booting') {

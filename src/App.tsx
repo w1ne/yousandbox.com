@@ -13,8 +13,25 @@ const INITIAL_TERM_HEIGHT = 30 // % of total height
 const MIN_TERM_HEIGHT = 15
 const MAX_TERM_HEIGHT = 60
 
-// ---- v86 config -------------------------------------------------------------
-const LINUX_IMAGE_URL = 'https://copy.sh/v86/images/linux4.iso'
+// ---- flavor configs ---------------------------------------------------------
+const FLAVORS = {
+    python: {
+        label: 'Python & Data',
+        imageUrl: undefined,
+        kernelUrl: '/v86/vmlinuz-python',
+        initrdUrl: '/v86/initramfs-python',
+        cmdline: 'console=ttyS0 noapic nolapic earlyprintk=serial,ttyS0',
+        memoryMb: 1024,
+    },
+    linux: {
+        label: 'Linux (basic)',
+        imageUrl: '/v86/linux4.iso',
+        kernelUrl: undefined,
+        memoryMb: undefined,
+    },
+} as const
+
+type FlavorId = keyof typeof FLAVORS
 
 interface DragState {
     type: 'left' | 'right' | 'terminal'
@@ -41,6 +58,7 @@ export default function App() {
 
     // v86
     const [bootState, setBootState] = useState<BootState>('idle')
+    const [flavor, setFlavor] = useState<FlavorId>('python')
     const engineRef = useRef<V86Engine | null>(null)
     const terminalRef = useRef<XTerm | null>(null)
 
@@ -113,9 +131,20 @@ export default function App() {
         engine.onStateChange(setBootState)
 
         try {
+            const { imageUrl, kernelUrl, initrdUrl, cmdline, memoryMb } = FLAVORS[flavor] as {
+                imageUrl: string | undefined
+                kernelUrl: string | undefined
+                initrdUrl?: string
+                cmdline?: string
+                memoryMb?: number
+            }
             await engine.boot({
                 terminal: terminalRef.current,
-                imageUrl: LINUX_IMAGE_URL,
+                imageUrl,
+                kernelUrl,
+                initrdUrl,
+                cmdline,
+                memoryMb,
             })
         } catch {
             // state already set to 'error' by engine
@@ -145,10 +174,16 @@ export default function App() {
                 <span className="font-bold tracking-tight text-sm">yousandbox</span>
                 <select
                     className="ml-4 bg-[#21262d] border border-[#30363d] rounded px-2 py-1 text-xs text-[#e6edf3] cursor-pointer"
-                    defaultValue="python"
+                    value={flavor}
+                    onChange={(e) => setFlavor(e.target.value as FlavorId)}
+                    disabled={bootState !== 'idle'}
                     aria-label="Flavor"
                 >
-                    <option value="python">Python &amp; Data</option>
+                    {(Object.entries(FLAVORS) as [FlavorId, (typeof FLAVORS)[FlavorId]][]).map(
+                        ([id, f]) => (
+                            <option key={id} value={id}>{f.label}</option>
+                        ),
+                    )}
                 </select>
                 <select
                     className="bg-[#21262d] border border-[#30363d] rounded px-2 py-1 text-xs text-[#e6edf3] cursor-pointer"
