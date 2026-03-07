@@ -26,6 +26,14 @@ const FLAVORS = {
         cmdline: 'console=ttyS0 noapic nolapic quiet',
         memoryMb: 1024,
     },
+    webdev: {
+        label: 'Web Dev',
+        imageUrl: undefined,
+        kernelUrl: '/v86/vmlinuz-python',
+        initrdUrl: '/v86/initramfs-webdev',
+        cmdline: 'console=ttyS0 noapic nolapic quiet',
+        memoryMb: 512,
+    },
     linux: {
         label: 'Linux (basic)',
         imageUrl: '/v86/linux4.iso',

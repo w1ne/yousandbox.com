@@ -63,7 +63,8 @@ test.describe('unsupported browser guard', () => {
 })
 
 test.describe('v86 engine boot', () => {
-    test.beforeEach(async ({ page }) => {
+    test.beforeEach(async ({ context, page }) => {
+        await context.addInitScript(() => localStorage.setItem('ysb_tos_v1', 'true'))
         await page.goto('/')
     })
 

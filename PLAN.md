@@ -247,15 +247,15 @@ Exit gate:
 
 ---
 
-#### ⬜ Web Dev flavor `M`
+#### ✅ Web Dev flavor `M`
 
 Depends on: port forwarding
 
 Exit gate:
-- [ ] `node -e "console.log('ok')"` outputs `ok`
-- [ ] A running Express server is accessible in the preview iframe
-- [ ] Flavor image loads within 10s on simulated 50 Mbps
-- [ ] E2E (`flavors.spec.ts`): smoke commands pass within timeout
+- [x] `node -e "console.log('ok')"` outputs `ok`
+- [x] Express server accessible via preview iframe through ttyS1 HTTP bridge
+- [x] Flavor image (Alpine + nodejs + npm, ~25 MB compressed) loads within 10s at 50 Mbps
+- [x] E2E (`flavors.spec.ts`): flavor selection, banner, node --version, console.log, download timing
 
 ---
 
