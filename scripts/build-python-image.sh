@@ -177,6 +177,7 @@ docker run \
     sh -euc '
         apk add --no-cache linux-lts 1>&2
         cp /boot/vmlinuz-lts /out/vmlinuz-python
+        chown "$(stat -c %u:%g /out)" /out/vmlinuz-python
         ls -lh /boot/vmlinuz-lts
     ' 2>/dev/null
 
