@@ -322,7 +322,7 @@ export default function App() {
                     />
 
                     <div className="overflow-hidden flex-1" data-testid="pane-preview">
-                        <Preview />
+                        <Preview isRunning={bootState === 'running'} onRefresh={(port) => engineRef.current!.requestPortHttp(port)} />
                     </div>
                 </div>
 

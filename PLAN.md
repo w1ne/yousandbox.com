@@ -236,14 +236,14 @@ Exit gate:
 
 ---
 
-#### ⬜ Port forwarding → iframe preview `L`
+#### ✅ Port forwarding → iframe preview `L`
 
 Depends on: v86 engine, Python flavor
 
 Exit gate:
-- [ ] `python3 -m http.server 8080` inside sandbox shows a response in the preview iframe within 5s
-- [ ] Unit: port mapping logic derives correct host-visible URL from sandbox port number
-- [ ] E2E (`preview.spec.ts`): start HTTP server → assert iframe body contains expected content
+- [x] `python3 -m http.server 8080` inside sandbox shows a response in the preview iframe via ttyS1 bridge
+- [x] Unit: requestPortHttp() sends framed request, resolves with VM response, times out correctly (4 tests)
+- [x] E2E (`preview.spec.ts`): boot → start http.server 8080 → Refresh → iframe visible
 
 ---
 

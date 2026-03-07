@@ -11,6 +11,7 @@ const mockEmulator = {
     stop: vi.fn().mockResolvedValue(undefined),
     restart: vi.fn(),
     serial0_send: vi.fn(),
+    serial1_send: vi.fn(),
     add_listener: vi.fn(),
     remove_listener: vi.fn(),
     set_serial_container_xtermjs: vi.fn(),
@@ -191,6 +192,75 @@ describe('V86Engine', () => {
         expect(readSpies[0]).toContain('stty -echo && base64 -d > test.txt')
         expect(readSpies.slice(1)).toContain('\x04') // Ctrl+D
         expect(readSpies[readSpies.length - 1]).toContain('stty echo')
+        vi.useRealTimers()
+    })
+})
+
+describe('V86Engine.requestPortHttp', () => {
+    let engine: V86Engine
+    let terminal: XTerm
+    let capturedSerial1Listener: ((byte: number) => void) | null = null
+
+    beforeEach(async () => {
+        vi.clearAllMocks()
+        mockEmulator.destroy.mockResolvedValue(undefined)
+        mockEmulator.stop.mockResolvedValue(undefined)
+
+        // Capture serial1 listener and fire emulator-started immediately
+        mockEmulator.add_listener.mockImplementation((event: string, handler: (...args: unknown[]) => void) => {
+            if (event === 'emulator-started') handler()
+            if (event === 'serial1-output-byte') capturedSerial1Listener = handler as (b: number) => void
+        })
+
+        engine = new V86Engine()
+        terminal = makeTerminal()
+        await engine.boot({ terminal, imageUrl: '/img/linux.iso' })
+    })
+
+    afterEach(async () => {
+        await engine.dispose()
+        capturedSerial1Listener = null
+    })
+
+    it('throws when emulator is not running', async () => {
+        const idle = new V86Engine()
+        await expect(idle.requestPortHttp(8080)).rejects.toThrow('Emulator not running')
+    })
+
+    it('sends the correct framed request on serial1', async () => {
+        // requestPortHttp sends the frame synchronously then waits for a response.
+        // Simulate the VM bridge responding so the promise resolves cleanly.
+        const promise = engine.requestPortHttp(8080, '/hello')
+
+        // Frame was sent synchronously
+        const sent = mockEmulator.serial1_send.mock.calls[0][0] as string
+        expect(sent).toContain('\x028080:')
+        expect(sent).toContain('GET /hello HTTP/1.0')
+        expect(sent).toContain('\x03')
+
+        // Resolve by simulating VM response (avoids timer leak)
+        const fakeResp = '\x02HTTP/1.0 200 OK\r\n\r\n\x03'
+        for (const ch of fakeResp) capturedSerial1Listener!(ch.charCodeAt(0))
+        await promise
+    })
+
+    it('resolves with the raw HTTP response from the VM bridge', async () => {
+        const promise = engine.requestPortHttp(8080, '/')
+
+        const fakeResp = '\x02HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n<h1>Hi</h1>\x03'
+        for (const ch of fakeResp) capturedSerial1Listener!(ch.charCodeAt(0))
+
+        const result = await promise
+        expect(result).toBe('HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n<h1>Hi</h1>')
+    })
+
+    it('rejects after timeout when VM bridge does not respond', async () => {
+        vi.useFakeTimers()
+        const promise = engine.requestPortHttp(8080, '/')
+        // Attach rejection handler before advancing timers to avoid unhandled-rejection warning
+        const assertion = expect(promise).rejects.toThrow('HTTP bridge timeout')
+        await vi.advanceTimersByTimeAsync(15_000)
+        await assertion
         vi.useRealTimers()
     })
 })

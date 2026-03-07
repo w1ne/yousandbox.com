@@ -45,7 +45,56 @@ FROM i386/alpine:3.19
 RUN apk add --no-cache python3 py3-pandas py3-numpy && \
     rm -rf /var/cache/apk/* /tmp/*
 
-# Custom init: mount pseudo-filesystems, print banner, drop to shell.
+# HTTP bridge: forwards HTTP requests from ttyS1 to localhost:PORT.
+# The v86 host sends \x02PORT:HTTP_REQUEST\x03 and reads \x02HTTP_RESPONSE\x03 back.
+RUN printf '#!/usr/bin/env python3\n\
+import socket, sys\n\
+\n\
+def forward(port, req):\n\
+    try:\n\
+        s = socket.socket()\n\
+        s.settimeout(5)\n\
+        s.connect(("127.0.0.1", port))\n\
+        s.sendall(req)\n\
+        resp = b""\n\
+        while True:\n\
+            d = s.recv(4096)\n\
+            if not d: break\n\
+            resp += d\n\
+        s.close()\n\
+        return resp\n\
+    except Exception as e:\n\
+        return ("HTTP/1.0 502 Bad Gateway\\r\\nContent-Type: text/plain\\r\\n\\r\\nBridge error: " + str(e)).encode()\n\
+\n\
+def main():\n\
+    tty = open("/dev/ttyS1", "r+b", buffering=0)\n\
+    buf = b""\n\
+    while True:\n\
+        chunk = tty.read(1)\n\
+        if not chunk: continue\n\
+        buf += chunk\n\
+        while b"\\x02" in buf and b"\\x03" in buf:\n\
+            s = buf.index(b"\\x02")\n\
+            e = buf.index(b"\\x03", s + 1)\n\
+            if e <= s: break\n\
+            frame = buf[s+1:e]\n\
+            buf = buf[e+1:]\n\
+            try:\n\
+                colon = frame.index(b":")\n\
+                port = int(frame[:colon])\n\
+                req = frame[colon+1:]\n\
+                resp = forward(port, req)\n\
+                tty.write(b"\\x02" + resp + b"\\x03")\n\
+                tty.flush()\n\
+            except Exception as ex:\n\
+                err = ("HTTP/1.0 500 Internal Server Error\\r\\nContent-Type: text/plain\\r\\n\\r\\n" + str(ex)).encode()\n\
+                tty.write(b"\\x02" + err + b"\\x03")\n\
+                tty.flush()\n\
+\n\
+main()\n\
+' > /usr/local/bin/http-bridge && chmod +x /usr/local/bin/http-bridge
+
+# Custom init: mount pseudo-filesystems, print banner, start http-bridge, drop to shell.
 # Write to a temp name first (busybox is executing as /sbin/init), then swap.
 RUN printf '#!/bin/sh\n\
 mount -t proc proc /proc 2>/dev/null\n\
@@ -61,6 +110,7 @@ echo ""\n\
 echo "yousandbox.com -- Python & Data"\n\
 python3 --version 2>&1\n\
 echo ""\n\
+python3 /usr/local/bin/http-bridge &\n\
 exec /bin/sh\n\
 ' > /sbin/v86init \
  && chmod +x /sbin/v86init \
@@ -98,6 +148,7 @@ docker run --rm --privileged \
     alpine:3.19 sh -euc '
         mknod -m 600 /dev_out/console  c 5 1
         mknod -m 666 /dev_out/ttyS0    c 4 64
+        mknod -m 666 /dev_out/ttyS1    c 4 65
         mknod -m 666 /dev_out/null     c 1 3
         mknod -m 666 /dev_out/zero     c 1 5
         mknod -m 666 /dev_out/urandom  c 1 9

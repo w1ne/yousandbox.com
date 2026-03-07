@@ -26,12 +26,15 @@ export interface BootOptions {
 }
 
 type StateListener = (state: BootState) => void
+type Serial1Handler = (response: string) => void
 
 export class V86Engine {
     private _state: BootState = 'idle'
     private emulator: V86Instance | null = null
     private stateListeners: StateListener[] = []
     private bootTimer: ReturnType<typeof setTimeout> | null = null
+    private serial1Buf: string = ''
+    private serial1Handlers: Set<Serial1Handler> = new Set()
 
     get state(): BootState {
         return this._state
@@ -83,16 +86,21 @@ export class V86Engine {
                 bios: { url: `${base}/seabios.bin` },
                 vga_bios: { url: `${base}/vgabios.bin` },
                 autostart: true,
+                uart1_enabled: true,
                 ...diskConfig,
             }
 
             this.emulator = new V86(config) as unknown as V86Instance
 
-            // Bridge serial output to our xterm terminal directly.
-            // v86's serial_container_xtermjs creates a new terminal internally
-            // (it expects an HTMLElement, not our existing Terminal instance).
+            // Bridge serial0 output to the xterm terminal.
             this.emulator.add_listener('serial0-output-byte', (byte: unknown) => {
                 opts.terminal.write(Uint8Array.of(byte as number))
+            })
+
+            // Buffer serial1 output for HTTP bridge responses.
+            this.emulator.add_listener('serial1-output-byte', (byte: unknown) => {
+                this.serial1Buf += String.fromCharCode(byte as number)
+                this.flushSerial1()
             })
 
             this.emulator.add_listener('emulator-started', () => {
@@ -113,6 +121,33 @@ export class V86Engine {
 
     sendInput(data: string): void {
         this.emulator?.serial0_send(data)
+    }
+
+    /**
+     * Forward an HTTP request to a port running inside the sandbox via the ttyS1 bridge.
+     * The VM must be running the http-bridge script on /dev/ttyS1.
+     * Protocol: send \x02PORT:HTTP_REQUEST\x03, receive \x02HTTP_RESPONSE\x03.
+     */
+    async requestPortHttp(port: number, path: string = '/'): Promise<string> {
+        if (!this.emulator) throw new Error('Emulator not running')
+
+        return new Promise((resolve, reject) => {
+            const timer = setTimeout(() => {
+                this.serial1Handlers.delete(handler)
+                reject(new Error('HTTP bridge timeout'))
+            }, 10_000)
+
+            const handler: Serial1Handler = (response) => {
+                clearTimeout(timer)
+                this.serial1Handlers.delete(handler)
+                resolve(response)
+            }
+
+            this.serial1Handlers.add(handler)
+
+            const req = `GET ${path} HTTP/1.0\r\nHost: localhost:${port}\r\n\r\n`
+            this.emulator!.serial1_send(`\x02${port}:${req}\x03`)
+        })
     }
 
     async sendFile(file: File, path: string): Promise<void> {
@@ -171,7 +206,26 @@ export class V86Engine {
             await this.emulator.destroy()
             this.emulator = null
         }
+        this.serial1Buf = ''
+        this.serial1Handlers.clear()
         this.setState('idle')
+    }
+
+    private flushSerial1(): void {
+        // Extract complete frames delimited by \x02...\x03
+        while (true) {
+            const start = this.serial1Buf.indexOf('\x02')
+            if (start === -1) break
+            const end = this.serial1Buf.indexOf('\x03', start + 1)
+            if (end === -1) break
+
+            const frame = this.serial1Buf.slice(start + 1, end)
+            this.serial1Buf = this.serial1Buf.slice(end + 1)
+
+            for (const handler of this.serial1Handlers) {
+                handler(frame)
+            }
+        }
     }
 
     private setState(next: BootState): void {

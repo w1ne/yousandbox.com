@@ -10,6 +10,7 @@ export interface V86Config {
     initrd?: { url: string }
     autostart?: boolean
     network_relay_url?: string
+    uart1_enabled?: boolean
 }
 
 export interface V86Instance {
@@ -17,6 +18,7 @@ export interface V86Instance {
     stop(): Promise<void>
     restart(): void
     serial0_send(data: string): void
+    serial1_send(data: string): void
     add_listener(event: string, handler: (...args: unknown[]) => void): void
     remove_listener(event: string, handler: (...args: unknown[]) => void): void
     destroy(): Promise<void>
