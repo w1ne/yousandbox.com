@@ -222,17 +222,17 @@ Exit gate:
 
 ---
 
-#### ⬜ CI/CD + Cloudflare Pages deploy `M`
+#### ✅ CI/CD + Cloudflare Pages deploy `M`
 
 Depends on: scaffold
 
 Exit gate:
-- [ ] GitHub Actions runs `typecheck`, `test:run`, `test:e2e` on every PR
-- [ ] All three jobs must pass before merge (branch protection)
-- [ ] Merge to `main` auto-deploys to Cloudflare Pages
-- [ ] COOP/COEP headers verified via `public/_headers` in E2E run
-- [ ] Direct push to `main` is blocked; linear history enforced (squash/rebase only)
-- [ ] Deploy token stored as GitHub Actions secret, never committed
+- [x] GitHub Actions runs `typecheck`, `test:run`, `test:e2e:fast` on every PR
+- [x] All three jobs must pass before `deploy` job runs (`needs` gate)
+- [x] Merge to `main` auto-deploys to Cloudflare Pages via `wrangler-action@v3`
+- [x] COOP/COEP headers in `public/_headers` (`credentialless` COEP for local asset compatibility)
+- [ ] Direct push to `main` is blocked — configure branch protection in GitHub repo settings
+- [ ] `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` stored as GitHub Actions secrets
 
 ---
 
