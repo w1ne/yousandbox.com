@@ -6,6 +6,9 @@ import Preview from './components/layout/Preview'
 import Terminal from './components/layout/Terminal'
 import { adjustLeftHandle, adjustRightHandle, PaneWidths } from './lib/layout/paneResize'
 import { V86Engine, type BootState } from './lib/v86/engine'
+import { readTosAccepted, writeTosAccepted } from './lib/tos'
+import TosModal from './components/TosModal'
+import { wipeBurnerSession } from './lib/wipe'
 
 // ---- layout constants -------------------------------------------------------
 const INITIAL_COL_WIDTHS: PaneWidths = { left: 15, center: 52, right: 33 }
@@ -20,7 +23,7 @@ const FLAVORS = {
         imageUrl: undefined,
         kernelUrl: '/v86/vmlinuz-python',
         initrdUrl: '/v86/initramfs-python',
-        cmdline: 'console=ttyS0 noapic nolapic earlyprintk=serial,ttyS0',
+        cmdline: 'console=ttyS0 noapic nolapic quiet',
         memoryMb: 1024,
     },
     linux: {
@@ -61,6 +64,14 @@ export default function App() {
     const [flavor, setFlavor] = useState<FlavorId>('python')
     const engineRef = useRef<V86Engine | null>(null)
     const terminalRef = useRef<XTerm | null>(null)
+
+    // ToS gate
+    const [tosAccepted, setTosAccepted] = useState(() => readTosAccepted())
+
+    // file drag-drop
+    const [files, setFiles] = useState<string[]>([])
+    const [isDragging, setIsDragging] = useState(false)
+    const [isUploading, setIsUploading] = useState(false)
 
     // ---- drag-resize --------------------------------------------------------
     const onMouseDown = useCallback(
@@ -114,6 +125,12 @@ export default function App() {
         }
     }, [])
 
+    // ---- wipe on close ------------------------------------------------------
+    useEffect(() => {
+        window.addEventListener('pagehide', wipeBurnerSession)
+        return () => window.removeEventListener('pagehide', wipeBurnerSession)
+    }, [])
+
     // ---- boot ---------------------------------------------------------------
     const handleBoot = useCallback(async () => {
         if (bootState === 'booting' || bootState === 'running') return
@@ -159,16 +176,60 @@ export default function App() {
         terminalRef.current = terminal
     }, [])
 
+    // ---- file drag-drop -----------------------------------------------------
+    const onDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault()
+        if (bootState === 'running') setIsDragging(true)
+    }, [bootState])
+
+    const onDragLeave = useCallback((e: React.DragEvent) => {
+        e.preventDefault()
+        setIsDragging(false)
+    }, [])
+
+    const onDrop = useCallback(async (e: React.DragEvent) => {
+        e.preventDefault()
+        setIsDragging(false)
+        if (bootState !== 'running' || !engineRef.current) return
+
+        const file = e.dataTransfer.files[0]
+        if (!file) return
+
+        setIsUploading(true)
+        try {
+            await engineRef.current.sendFile(file, file.name)
+            setFiles((prev) => Array.from(new Set([...prev, file.name])))
+        } catch (err) {
+            console.error('Failed to upload file:', err)
+        } finally {
+            setIsUploading(false)
+        }
+    }, [bootState])
+
     // ---- boot state indicator -----------------------------------------------
     const isBooting = bootState === 'booting'
     const isError = bootState === 'error' || bootState === 'timeout'
     const bootDisabled = isBooting || bootState === 'running'
 
+    const handleTosAccept = () => {
+        writeTosAccepted()
+        setTosAccepted(true)
+    }
+
     return (
         <div
             ref={containerRef}
-            className="flex flex-col h-screen bg-[#0d1117] text-[#e6edf3] select-none overflow-hidden"
+            className="relative flex flex-col h-screen bg-[#0d1117] text-[#e6edf3] select-none overflow-hidden"
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
         >
+            {!tosAccepted && <TosModal onAccept={handleTosAccept} />}
+            {isDragging && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#0d1117]/80 backdrop-blur-sm border-4 border-dashed border-[#58a6ff] m-4 rounded-xl">
+                    <span className="text-2xl font-bold text-[#58a6ff]">Drop file to inject</span>
+                </div>
+            )}
             {/* Top bar */}
             <header className="flex items-center gap-3 px-4 py-2 border-b border-[#30363d] bg-[#161b22] shrink-0">
                 <span className="font-bold tracking-tight text-sm">yousandbox</span>
@@ -218,8 +279,8 @@ export default function App() {
                         {bootState === 'timeout'
                             ? 'Boot timed out'
                             : bootState === 'error'
-                              ? 'Failed to start sandbox'
-                              : 'Starting…'}
+                                ? 'Failed to start sandbox'
+                                : 'Starting…'}
                     </span>
                 )}
             </header>
@@ -237,7 +298,7 @@ export default function App() {
                         style={{ width: `${colWidths.left}%` }}
                         data-testid="pane-files"
                     >
-                        <FileTree />
+                        <FileTree files={files} isUploading={isUploading} />
                     </div>
 
                     <div

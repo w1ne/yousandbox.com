@@ -69,11 +69,11 @@ export class V86Engine {
 
             const diskConfig = opts.kernelUrl
                 ? {
-                      bzimage: { url: opts.kernelUrl },
-                      ...(opts.initrdUrl ? { initrd: { url: opts.initrdUrl } } : {}),
-                      ...(opts.imageUrl ? { hda: { url: opts.imageUrl, async: true } } : {}),
-                      cmdline: opts.cmdline ?? 'root=/dev/sda rw console=ttyS0 quiet',
-                  }
+                    bzimage: { url: opts.kernelUrl },
+                    ...(opts.initrdUrl ? { initrd: { url: opts.initrdUrl } } : {}),
+                    ...(opts.imageUrl ? { hda: { url: opts.imageUrl, async: true } } : {}),
+                    cmdline: opts.cmdline ?? 'root=/dev/sda rw console=ttyS0 quiet',
+                }
                 : { cdrom: { url: opts.imageUrl as string, async: true } }
 
             const config = {
@@ -113,6 +113,53 @@ export class V86Engine {
 
     sendInput(data: string): void {
         this.emulator?.serial0_send(data)
+    }
+
+    async sendFile(file: File, path: string): Promise<void> {
+        if (!this.emulator) throw new Error('Emulator not running')
+
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onerror = () => reject(reader.error)
+            reader.onload = async () => {
+                try {
+                    const arrayBuffer = reader.result as ArrayBuffer
+                    // Convert buffer to base64
+                    const base64Str = btoa(
+                        new Uint8Array(arrayBuffer).reduce(
+                            (data, byte) => data + String.fromCharCode(byte),
+                            '',
+                        ),
+                    )
+
+                    // Disable echo so we don't spam the terminal, then start base64 decode
+                    this.sendInput('stty -echo && base64 -d > ' + path + '\n')
+
+                    // Allow the shell to process the command before sending data
+                    await new Promise((r) => setTimeout(r, 100))
+
+                    // Stream the base64 string in chunks to avoid blocking the UI too long
+                    const CHUNK_SIZE = 1024 * 1024 // 1MB chunks
+                    for (let i = 0; i < base64Str.length; i += CHUNK_SIZE) {
+                        this.sendInput(base64Str.slice(i, i + CHUNK_SIZE))
+                        // Yield to the event loop so the browser / engine can process
+                        await new Promise((r) => setTimeout(r, 10))
+                    }
+
+                    // Send Ctrl+D (EOT) to close the stdin of base64
+                    this.sendInput('\x04')
+
+                    // Wait for base64 to process the EOT and exit, then restore echo
+                    await new Promise((r) => setTimeout(r, 100))
+                    this.sendInput('\nstty echo\n')
+
+                    resolve()
+                } catch (e) {
+                    reject(e)
+                }
+            }
+            reader.readAsArrayBuffer(file)
+        })
     }
 
     async dispose(): Promise<void> {

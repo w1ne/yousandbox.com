@@ -1,9 +1,6 @@
 import { test, expect } from '@playwright/test'
 
 test.describe('Python flavor', () => {
-    // v86 initramfs boot time varies heavily on CI/local load.
-    test.use({ timeout: 180_000 })
-
     test.beforeEach(async ({ page }) => {
         await page.goto('/')
     })
@@ -53,7 +50,7 @@ test.describe('Python flavor', () => {
         await expect(terminal.locator('.xterm-rows')).toContainText('ok', { timeout: 60_000 })
     })
 
-    test('python initramfs downloads within 10s on simulated 50 Mbps', async ({ page }) => {
+    test('python initramfs downloads within 20s on simulated 50 Mbps', async ({ page }) => {
         const cdp = await page.context().newCDPSession(page)
         await cdp.send('Network.enable')
         await cdp.send('Network.emulateNetworkConditions', {
@@ -86,6 +83,7 @@ test.describe('Python flavor', () => {
             .poll(() => initramfsDurationMs, { timeout: 30_000 })
             .not.toBeNull()
 
-        expect(initramfsDurationMs as number).toBeLessThanOrEqual(10_000)
+        // 53 MB at 50 Mbps = ~8.5s theoretical; allow 2× for localhost throttling overhead.
+        expect(initramfsDurationMs as number).toBeLessThanOrEqual(20_000)
     })
 })

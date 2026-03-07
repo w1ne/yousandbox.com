@@ -23,7 +23,7 @@ vi.mock('v86', () => ({
 
 function makeTerminal(): XTerm {
     return {
-        constructor: class FakeTerminal {},
+        constructor: class FakeTerminal { },
         write: vi.fn(),
         onData: vi.fn().mockReturnValue({ dispose: vi.fn() }),
         open: vi.fn(),
@@ -45,7 +45,7 @@ describe('V86Engine', () => {
         mockEmulator.destroy.mockResolvedValue(undefined)
         mockEmulator.stop.mockResolvedValue(undefined)
         // Default: add_listener is a no-op (does NOT auto-fire 'emulator-started')
-        mockEmulator.add_listener.mockImplementation(() => {})
+        mockEmulator.add_listener.mockImplementation(() => { })
         engine = new V86Engine()
         terminal = makeTerminal()
     })
@@ -147,5 +147,50 @@ describe('V86Engine', () => {
         vi.useRealTimers()
 
         expect(states).toContain('timeout')
+    })
+
+    it('transitions to error state when v86 import throws', async () => {
+        const { V86 } = await import('v86')
+        vi.mocked(V86).mockImplementationOnce(() => {
+            throw new Error('Wasm load failed')
+        })
+
+        const states: BootState[] = []
+        engine.onStateChange((s) => states.push(s))
+
+        await expect(
+            engine.boot({ terminal, imageUrl: '/img/linux.iso' }),
+        ).rejects.toThrow('Wasm load failed')
+
+        expect(states).toContain('error')
+        expect(engine.state).toBe<BootState>('error')
+    })
+
+    it('sendFile() throws when emulator is not running', async () => {
+        const file = new File(['data'], 'test.txt', { type: 'text/plain' })
+        await expect(engine.sendFile(file, 'test.txt')).rejects.toThrow('Emulator not running')
+    })
+
+    it('sendFile() reads a File and sends data correctly', async () => {
+        vi.useFakeTimers()
+        await engine.boot({ terminal, imageUrl: '/img/linux.iso' })
+
+        const fileData = new TextEncoder().encode('Hello World')
+        const file = new File([fileData], 'test.txt', { type: 'text/plain' })
+
+        // Mock FileReader as jsdom environment might lack a full implementation or it might be asynchronous
+        const readSpies: string[] = []
+        mockEmulator.serial0_send.mockImplementation((data) => readSpies.push(data))
+
+        const sendPromise = engine.sendFile(file, 'test.txt')
+
+        // Wait for FileReader to load and the loop to run
+        await vi.runAllTimersAsync()
+        await sendPromise
+
+        expect(readSpies[0]).toContain('stty -echo && base64 -d > test.txt')
+        expect(readSpies.slice(1)).toContain('\x04') // Ctrl+D
+        expect(readSpies[readSpies.length - 1]).toContain('stty echo')
+        vi.useRealTimers()
     })
 })

@@ -52,6 +52,16 @@ test.describe('4-pane layout', () => {
     })
 })
 
+test.describe('unsupported browser guard', () => {
+    test('shows unsupported-browser screen when SharedArrayBuffer is absent', async ({ page }) => {
+        await page.addInitScript(() => {
+            delete (globalThis as unknown as Record<string, unknown>).SharedArrayBuffer
+        })
+        await page.goto('/')
+        await expect(page.getByTestId('unsupported-browser')).toBeVisible()
+    })
+})
+
 test.describe('v86 engine boot', () => {
     test.beforeEach(async ({ page }) => {
         await page.goto('/')
