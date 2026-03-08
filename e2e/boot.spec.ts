@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test'
 
 test.describe('4-pane layout', () => {
-    test.beforeEach(async ({ page }) => {
+    test.beforeEach(async ({ context, page }) => {
+        await context.addInitScript(() => localStorage.setItem('ysb_tos_v1', 'true'))
         await page.goto('/')
     })
 
@@ -26,7 +27,7 @@ test.describe('4-pane layout', () => {
 
     test('preview pane shows placeholder text', async ({ page }) => {
         await expect(page.getByTestId('preview-pane')).toContainText(
-            'Run your code to see output here',
+            'Start a server inside the sandbox, then click Refresh',
         )
     })
 

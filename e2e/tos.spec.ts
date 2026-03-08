@@ -1,10 +1,8 @@
 import { test, expect } from '@playwright/test'
 
 test.describe('ToS gate', () => {
-    test.beforeEach(async ({ context }) => {
-        // Clear localStorage so each test starts with a fresh ToS state
-        await context.addInitScript(() => localStorage.removeItem('ysb_tos_v1'))
-    })
+    // Each test gets a fresh Playwright context (isolated localStorage) by default.
+    // No explicit cleanup needed.
 
     test('shows ToS modal on first visit', async ({ page }) => {
         await page.goto('/')
