@@ -23,7 +23,7 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
 
-  test-unit:
+  test:
     name: Unit tests
     runs-on: ubuntu-latest
     steps:
@@ -35,7 +35,7 @@ jobs:
       - run: npm ci
       - run: npm run test:run
 
-  test-e2e:
+  e2e:
     name: E2E tests (fast — no v86 boot)
     runs-on: ubuntu-latest
     steps:
@@ -73,7 +73,7 @@ jobs:
 
   deploy:
     name: Deploy to GitHub Pages
-    needs: [typecheck, test-unit, test-e2e]
+    needs: [typecheck, test, e2e]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
