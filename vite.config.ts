@@ -19,6 +19,9 @@ function coiPlugin() {
 
 // https://vitejs.dev/config/
 export default defineConfig({
+    // GitHub Pages serves the repo at /<repo-name>/ when an account-level custom domain is set.
+    // Change to '/' if a dedicated custom domain is added to this repo.
+    base: '/yousandbox.com/',
     plugins: [react(), coiPlugin()],
     server: {
         headers: {
