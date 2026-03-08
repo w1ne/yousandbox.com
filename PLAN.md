@@ -4,7 +4,7 @@
 
 ## Current Focus
 
-**Phase 1 — Proof of Concept** ← working here now
+**Phase 3 complete — deployed to GitHub Pages** ✅
 
 Jump to: [Phase 1](#phase-1--proof-of-concept) · [Phase 2](#phase-2--burner-sandbox) · [Phase 3](#phase-3--ship-it)
 
@@ -229,10 +229,10 @@ Depends on: scaffold
 Exit gate:
 - [x] GitHub Actions runs `typecheck`, `test:run`, `test:e2e:fast` on every PR
 - [x] All three jobs must pass before `deploy` job runs (`needs` gate)
-- [x] Merge to `main` auto-deploys to Cloudflare Pages via `wrangler-action@v3`
-- [x] COOP/COEP headers in `public/_headers` (`credentialless` COEP for local asset compatibility)
-- [ ] Direct push to `main` is blocked — configure branch protection in GitHub repo settings
-- [ ] `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` stored as GitHub Actions secrets
+- [x] Merge to `main` auto-deploys to GitHub Pages via `actions/deploy-pages`
+- [x] COOP/COEP headers via `coi-serviceworker` SW (GitHub Pages has no custom headers)
+- [x] Direct push to `main` is blocked — branch protection configured (requires typecheck+test+e2e)
+- [x] No secrets needed — GitHub Pages uses built-in GITHUB_TOKEN permissions
 
 ---
 
