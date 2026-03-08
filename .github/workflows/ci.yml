@@ -1,9 +1,9 @@
 name: CI
 
 on:
-  pull_request:
-    branches: [main]
   push:
+    branches: [main]
+  pull_request:
     branches: [main]
 
 concurrency:
@@ -16,112 +16,87 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Skip if no package.json
-        id: check
-        run: echo "has_pkg=$(test -f package.json && echo true || echo false)" >> $GITHUB_OUTPUT
       - uses: actions/setup-node@v4
-        if: steps.check.outputs.has_pkg == 'true'
         with:
           node-version: 20
-      - name: Cache node_modules
-        if: steps.check.outputs.has_pkg == 'true'
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-          restore-keys: nm-${{ runner.os }}-
+          cache: npm
       - run: npm ci
-        if: steps.check.outputs.has_pkg == 'true'
       - run: npm run typecheck
-        if: steps.check.outputs.has_pkg == 'true'
 
   test:
     name: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Skip if no package.json
-        id: check
-        run: echo "has_pkg=$(test -f package.json && echo true || echo false)" >> $GITHUB_OUTPUT
       - uses: actions/setup-node@v4
-        if: steps.check.outputs.has_pkg == 'true'
         with:
           node-version: 20
-      - name: Cache node_modules
-        if: steps.check.outputs.has_pkg == 'true'
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-          restore-keys: nm-${{ runner.os }}-
+          cache: npm
       - run: npm ci
-        if: steps.check.outputs.has_pkg == 'true'
       - run: npm run test:run
-        if: steps.check.outputs.has_pkg == 'true'
 
   e2e:
     name: e2e
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Skip if no package.json
-        id: check
-        run: echo "has_pkg=$(test -f package.json && echo true || echo false)" >> $GITHUB_OUTPUT
       - uses: actions/setup-node@v4
-        if: steps.check.outputs.has_pkg == 'true'
         with:
           node-version: 20
-      - name: Cache node_modules
-        if: steps.check.outputs.has_pkg == 'true'
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-          restore-keys: nm-${{ runner.os }}-
-      - name: Cache Playwright browsers
-        if: steps.check.outputs.has_pkg == 'true'
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-          restore-keys: playwright-${{ runner.os }}-
+          cache: npm
       - run: npm ci
-        if: steps.check.outputs.has_pkg == 'true'
-      - run: npx playwright install --with-deps chromium
-        if: steps.check.outputs.has_pkg == 'true'
-      - run: npm run test:e2e
-        if: steps.check.outputs.has_pkg == 'true'
+
+      # Download v86 Wasm + BIOS assets.
+      # vmlinuz-python / initramfs-python are gitignored (custom Docker build);
+      # boot-heavy tests are excluded via grep-invert in test:e2e:fast.
+      - name: Download v86 assets
+        run: node scripts/download-v86.mjs
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Build
+        run: npm run build
+
+      - name: Run fast E2E
+        run: npm run test:e2e:fast
         env:
           CI: true
 
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
   deploy:
-    name: deploy
+    name: Deploy to GitHub Pages
     needs: [typecheck, test, e2e]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - name: Skip if no package.json
-        id: check
-        run: echo "has_pkg=$(test -f package.json && echo true || echo false)" >> $GITHUB_OUTPUT
       - uses: actions/setup-node@v4
-        if: steps.check.outputs.has_pkg == 'true'
         with:
           node-version: 20
-      - name: Cache node_modules
-        if: steps.check.outputs.has_pkg == 'true'
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-          restore-keys: nm-${{ runner.os }}-
+          cache: npm
       - run: npm ci
-        if: steps.check.outputs.has_pkg == 'true'
-      - run: npm run build
-        if: steps.check.outputs.has_pkg == 'true'
-      - uses: cloudflare/wrangler-action@v3
-        if: steps.check.outputs.has_pkg == 'true'
+      - name: Download v86 assets
+        run: node scripts/download-v86.mjs
+      - name: Build
+        run: npm run build
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=yousandbox
+          path: dist
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
