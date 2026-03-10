@@ -11,7 +11,10 @@ const mockEmulator = {
     stop: vi.fn().mockResolvedValue(undefined),
     restart: vi.fn(),
     serial0_send: vi.fn(),
-    serial1_send: vi.fn(),
+    serial_send_bytes: vi.fn(),
+    bus: {
+        send: vi.fn(),
+    },
     add_listener: vi.fn(),
     remove_listener: vi.fn(),
     set_serial_container_xtermjs: vi.fn(),
@@ -189,8 +192,8 @@ describe('V86Engine', () => {
         await vi.runAllTimersAsync()
         await sendPromise
 
-        expect(readSpies[0]).toContain('stty -echo && base64 -d > test.txt')
-        expect(readSpies.slice(1)).toContain('\x04') // Ctrl+D
+        expect(readSpies[0]).toContain("stty -echo && base64 -d << 'EOF_ysb' > test.txt")
+        expect(readSpies).toContain('\nEOF_ysb\n')
         expect(readSpies[readSpies.length - 1]).toContain('stty echo')
         vi.useRealTimers()
     })
@@ -232,8 +235,9 @@ describe('V86Engine.requestPortHttp', () => {
         // Simulate the VM bridge responding so the promise resolves cleanly.
         const promise = engine.requestPortHttp(8080, '/hello')
 
-        // Frame was sent synchronously
-        const sent = mockEmulator.serial1_send.mock.calls[0][0] as string
+        // Frame was sent via serial_send_bytes
+        const bytes = mockEmulator.serial_send_bytes.mock.calls[0][1] as Uint8Array
+        const sent = new TextDecoder().decode(bytes)
         expect(sent).toContain('\x028080:')
         expect(sent).toContain('GET /hello HTTP/1.0')
         expect(sent).toContain('\x03')
@@ -259,7 +263,7 @@ describe('V86Engine.requestPortHttp', () => {
         const promise = engine.requestPortHttp(8080, '/')
         // Attach rejection handler before advancing timers to avoid unhandled-rejection warning
         const assertion = expect(promise).rejects.toThrow('HTTP bridge timeout')
-        await vi.advanceTimersByTimeAsync(15_000)
+        await vi.advanceTimersByTimeAsync(35_000)
         await assertion
         vi.useRealTimers()
     })

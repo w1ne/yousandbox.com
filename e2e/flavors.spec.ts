@@ -96,6 +96,8 @@ test.describe('Web Dev flavor', () => {
         await page.goto('/')
         // Select the webdev flavor
         await page.getByLabel('Flavor').selectOption('webdev')
+        // Give React a tick to update the `flavor` state before clicking Boot
+        await page.waitForTimeout(150)
     })
 
     test('Web Dev flavor can be selected', async ({ page }) => {
