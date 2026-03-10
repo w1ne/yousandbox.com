@@ -22,7 +22,7 @@ test.describe('Burner sandbox guarantees', () => {
         await page.getByTestId('boot-button').click()
 
         const terminal = page.getByTestId('terminal')
-        await expect(terminal.locator('.xterm-rows')).toContainText('yousandbox.com', {
+        await expect(terminal.locator('.xterm-rows')).toContainText('yousandbox:~#', {
             timeout: 120_000,
         })
 

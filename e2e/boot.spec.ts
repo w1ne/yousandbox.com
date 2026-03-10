@@ -92,7 +92,7 @@ test.describe('v86 engine boot', () => {
         // 120s allows for v86 initramfs boot variance under heavy local/CI load.
         const terminal = page.getByTestId('terminal')
         await expect(terminal).toBeVisible()
-        await expect(terminal.locator('.xterm-rows')).toContainText('yousandbox.com', {
+        await expect(terminal.locator('.xterm-rows')).toContainText('yousandbox:~#', {
             timeout: 120_000,
         })
     })
