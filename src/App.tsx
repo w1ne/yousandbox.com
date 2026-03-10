@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { useState, useRef, useCallback, useEffect } from 'react'
 import type { Terminal as XTerm } from '@xterm/xterm'
 import FileTree from './components/layout/FileTree'
@@ -17,26 +18,27 @@ const MIN_TERM_HEIGHT = 15
 const MAX_TERM_HEIGHT = 60
 
 // ---- flavor configs ---------------------------------------------------------
+const BASE = import.meta.env.BASE_URL
 const FLAVORS = {
     python: {
         label: 'Python & Data',
         imageUrl: undefined,
-        kernelUrl: '/v86/vmlinuz-python',
-        initrdUrl: '/v86/initramfs-python',
+        kernelUrl: `${BASE}v86/vmlinuz-python`,
+        initrdUrl: `${BASE}v86/initramfs-python`,
         cmdline: 'console=ttyS0 noapic nolapic quiet',
         memoryMb: 1024,
     },
     webdev: {
         label: 'Web Dev',
         imageUrl: undefined,
-        kernelUrl: '/v86/vmlinuz-python',
-        initrdUrl: '/v86/initramfs-webdev',
+        kernelUrl: `${BASE}v86/vmlinuz-python`,
+        initrdUrl: `${BASE}v86/initramfs-webdev`,
         cmdline: 'console=ttyS0 noapic nolapic quiet',
         memoryMb: 512,
     },
     linux: {
         label: 'Linux (basic)',
-        imageUrl: '/v86/linux4.iso',
+        imageUrl: `${BASE}v86/linux4.iso`,
         kernelUrl: undefined,
         memoryMb: undefined,
     },
@@ -174,7 +176,7 @@ export default function App() {
         } catch {
             // state already set to 'error' by engine
         }
-    }, [bootState])
+    }, [bootState, flavor])
 
     const handleTerminalData = useCallback((data: string) => {
         engineRef.current?.sendInput(data)

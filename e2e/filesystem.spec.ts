@@ -8,9 +8,9 @@ test.describe('Filesystem Drag & Drop', () => {
         await page.goto('/')
         await page.getByTestId('boot-button').click()
 
-        // Wait until the Python banner appears — indicates init is done and shell is ready
+        // Wait until the shell prompt appears — indicates init is done and shell is ready
         const terminal = page.getByTestId('terminal')
-        await expect(terminal.locator('.xterm-rows')).toContainText('yousandbox.com', {
+        await expect(terminal.locator('.xterm-rows')).toContainText('yousandbox:~#', {
             timeout: 120_000,
         })
     })

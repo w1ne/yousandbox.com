@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import type { Terminal as XTerm } from '@xterm/xterm'
 import type { V86Instance } from './types'
 
@@ -51,11 +52,11 @@ export class V86Engine {
         if (this._state !== 'idle') throw new Error('Engine already started')
         this.setState('booting')
 
-        const base = opts.baseUrl ?? '/v86'
+        const base = opts.baseUrl ?? `${import.meta.env.BASE_URL}v86`
         const memBytes = (opts.memoryMb ?? 256) * 1024 * 1024
-        const timeout = opts.timeoutMs ?? 45_000
+        const timeout = opts.timeoutMs ?? 120_000
 
-        // Start the timeout clock before the async import so 45 s begins immediately.
+        // Start the timeout clock before the async import so 120 s begins immediately.
         this.bootTimer = setTimeout(() => {
             if (this._state === 'booting') {
                 this.setState('timeout')
@@ -86,7 +87,7 @@ export class V86Engine {
                 bios: { url: `${base}/seabios.bin` },
                 vga_bios: { url: `${base}/vgabios.bin` },
                 autostart: true,
-                uart1_enabled: true,
+                uart1: true,
                 ...diskConfig,
             }
 
@@ -135,7 +136,7 @@ export class V86Engine {
             const timer = setTimeout(() => {
                 this.serial1Handlers.delete(handler)
                 reject(new Error('HTTP bridge timeout'))
-            }, 10_000)
+            }, 30_000)
 
             const handler: Serial1Handler = (response) => {
                 clearTimeout(timer)
@@ -146,7 +147,7 @@ export class V86Engine {
             this.serial1Handlers.add(handler)
 
             const req = `GET ${path} HTTP/1.0\r\nHost: localhost:${port}\r\n\r\n`
-            this.emulator!.serial1_send(`\x02${port}:${req}\x03`)
+            this.sendSerial1(`\x02${port}:${req}\x03`)
         })
     }
 
@@ -167,8 +168,8 @@ export class V86Engine {
                         ),
                     )
 
-                    // Disable echo so we don't spam the terminal, then start base64 decode
-                    this.sendInput('stty -echo && base64 -d > ' + path + '\n')
+                    // Disable echo so we don't spam the terminal, then start base64 decode via heredoc
+                    this.sendInput(`stty -echo && base64 -d << 'EOF_ysb' > ${path}\n`)
 
                     // Allow the shell to process the command before sending data
                     await new Promise((r) => setTimeout(r, 100))
@@ -181,12 +182,12 @@ export class V86Engine {
                         await new Promise((r) => setTimeout(r, 10))
                     }
 
-                    // Send Ctrl+D (EOT) to close the stdin of base64
-                    this.sendInput('\x04')
+                    // End the heredoc
+                    this.sendInput('\nEOF_ysb\n')
 
-                    // Wait for base64 to process the EOT and exit, then restore echo
+                    // Wait for base64 to process and exit, then restore echo
                     await new Promise((r) => setTimeout(r, 100))
-                    this.sendInput('\nstty echo\n')
+                    this.sendInput('stty echo\n')
 
                     resolve()
                 } catch (e) {
@@ -195,6 +196,24 @@ export class V86Engine {
             }
             reader.readAsArrayBuffer(file)
         })
+    }
+
+    sendSerial1(data: string) {
+        if (!this.emulator) return
+        // V86 doesn't expose serial1_send(str), but exposes serial_send_bytes(port, uint8array)
+        const bytes = new Uint8Array(data.length)
+        for (let i = 0; i < data.length; i++) bytes[i] = data.charCodeAt(i)
+        // @ts-ignore
+        if (this.emulator.serial_send_bytes) {
+            // @ts-ignore
+            this.emulator.serial_send_bytes(1, bytes)
+        } else {
+            // fallback
+            for (let i = 0; i < data.length; i++) {
+                // @ts-ignore
+                this.emulator.bus?.send('serial1-input', data.charCodeAt(i))
+            }
+        }
     }
 
     async dispose(): Promise<void> {

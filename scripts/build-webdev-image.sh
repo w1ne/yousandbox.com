@@ -102,7 +102,7 @@ echo ""\n\
 echo "yousandbox.com -- Web Dev"\n\
 node --version 2>&1\n\
 echo ""\n\
-python3 /usr/local/bin/http-bridge &\n\
+node /usr/local/bin/http-bridge.js &\n\
 exec /bin/sh\n\
 ' > /sbin/v86init \
  && chmod +x /sbin/v86init \
