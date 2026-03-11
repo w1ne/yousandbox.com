@@ -1,4 +1,7 @@
 export default function UnsupportedBrowser() {
+    const isSecure = window.isSecureContext
+    const isIsolated = window.crossOriginIsolated
+
     return (
         <div
             className="flex h-screen w-screen items-center justify-center bg-[#0d1117] text-[#e6edf3]"
@@ -12,6 +15,18 @@ export default function UnsupportedBrowser() {
                     <strong className="text-[#e6edf3]">Edge 92+</strong> for{' '}
                     <code className="rounded bg-[#21262d] px-1">SharedArrayBuffer</code> support.
                 </p>
+
+                {!isSecure && (
+                    <div className="mb-6 rounded bg-[#3c1e1e] p-3 text-sm text-[#ff7b72] text-left">
+                        <strong>Missing Secure Context:</strong> You are accessing the site via an insecure connection (e.g., an IP address over HTTP). Browsers require HTTPS or <code>localhost</code> to enable SharedArrayBuffer.
+                    </div>
+                )}
+                {isSecure && !isIsolated && (
+                    <div className="mb-6 rounded bg-[#3c2a1e] p-3 text-sm text-[#ffa657] text-left">
+                        <strong>Missing Isolation Headers:</strong> The server did not send the required <code>Cross-Origin-Opener-Policy</code> and <code>Cross-Origin-Embedder-Policy</code> headers.
+                    </div>
+                )}
+
                 <p className="text-xs text-[#8b949e]">
                     Safari and Firefox do not support the features needed to run Linux locally.
                 </p>
