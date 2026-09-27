@@ -9,9 +9,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Zero-install Linux in your browser. Runs on your hardware, never leaves your machine." />
     <title>yousandbox — Linux in your browser</title>
+    <link rel="canonical" href="https://yousandbox.com/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="yousandbox" />
+    <meta property="og:url" content="https://yousandbox.com/" />
+    <meta property="og:title" content="yousandbox — Linux in your browser" />
+    <meta property="og:description" content="Zero-install Linux in your browser. Runs on your hardware, never leaves your machine." />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="yousandbox — Linux in your browser" />
+    <meta name="twitter:description" content="Zero-install Linux in your browser. Runs on your hardware, never leaves your machine." />
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Static content for crawlers and no-JS clients. React replaces it on mount. -->
+      <main style="max-width:40rem;margin:4rem auto;padding:0 1rem;font-family:system-ui,sans-serif;color:#e6edf3;background:#0d1117">
+        <h1>yousandbox — Linux in your browser</h1>
+        <p>Zero-install Linux in your browser. Runs on your hardware, never leaves your machine.</p>
+        <p>YouSandbox runs a real Linux environment entirely in your browser. The sandbox is ephemeral — everything is wiped when you close the tab.</p>
+        <noscript><p>yousandbox needs JavaScript to run.</p></noscript>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
