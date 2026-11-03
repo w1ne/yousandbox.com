@@ -5,6 +5,7 @@ test.describe('Preview port forwarding', () => {
         // Bypass ToS gate
         await context.addInitScript(() => localStorage.setItem('ysb_tos_v1', 'true'))
         await page.goto('/')
+        await page.getByRole('button', { name: 'Preview', exact: true }).click()
     })
 
     test('Refresh button is disabled before boot', async ({ page }) => {

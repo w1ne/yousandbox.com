@@ -9,7 +9,7 @@ test.describe('4-pane layout', () => {
     test('page loads and all panes are visible', async ({ page }) => {
         await expect(page.getByTestId('pane-files')).toBeVisible()
         await expect(page.getByTestId('pane-editor')).toBeVisible()
-        await expect(page.getByTestId('pane-preview')).toBeVisible()
+        await expect(page.getByTestId('pane-right')).toBeVisible()
         await expect(page.getByTestId('pane-terminal')).toBeVisible()
     })
 
@@ -25,24 +25,33 @@ test.describe('4-pane layout', () => {
         await expect(editorPane.locator('.view-line').first()).toContainText('print')
     })
 
-    test('preview pane shows placeholder text', async ({ page }) => {
+    test('Help is shown first and switches to Preview', async ({ page }) => {
+        const welcome = page.getByRole('heading', { name: 'Welcome to yousandbox' })
+        await expect(welcome).toBeVisible()
+        await expect(page.getByTestId('preview-pane')).not.toBeVisible()
+
+        await page.getByRole('button', { name: 'Preview', exact: true }).click()
         await expect(page.getByTestId('preview-pane')).toContainText(
             'Start a server inside the sandbox, then click Refresh',
         )
+
+        await page.getByRole('button', { name: 'Help & Docs', exact: true }).click()
+        await expect(welcome).toBeVisible()
+        await expect(page.getByTestId('preview-pane')).not.toBeVisible()
     })
 
     test('layout is stable at 1280px width', async ({ page }) => {
         await page.setViewportSize({ width: 1280, height: 800 })
         await expect(page.getByTestId('pane-files')).toBeVisible()
         await expect(page.getByTestId('pane-editor')).toBeVisible()
-        await expect(page.getByTestId('pane-preview')).toBeVisible()
+        await expect(page.getByTestId('pane-right')).toBeVisible()
     })
 
     test('layout is stable at 1920px width', async ({ page }) => {
         await page.setViewportSize({ width: 1920, height: 1080 })
         await expect(page.getByTestId('pane-files')).toBeVisible()
         await expect(page.getByTestId('pane-editor')).toBeVisible()
-        await expect(page.getByTestId('pane-preview')).toBeVisible()
+        await expect(page.getByTestId('pane-right')).toBeVisible()
     })
 
     test('Python syntax highlighting is active in the editor', async ({ page }) => {
