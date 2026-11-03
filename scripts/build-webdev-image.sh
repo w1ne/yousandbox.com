@@ -39,53 +39,47 @@ FROM i386/alpine:3.19
 RUN apk add --no-cache nodejs npm && \
     rm -rf /var/cache/apk/* /tmp/*
 
-# HTTP bridge: same ttyS1 bridge as the Python flavor.
-RUN printf '#!/usr/bin/env python3\n\
-import socket, sys\n\
+# HTTP bridge: Node.js ttyS1 bridge (python3 is not available in the webdev image).
+RUN printf 'const net = require("net");\n\
+const fs = require("fs");\n\
 \n\
-def forward(port, req):\n\
-    try:\n\
-        s = socket.socket()\n\
-        s.settimeout(5)\n\
-        s.connect(("127.0.0.1", port))\n\
-        s.sendall(req)\n\
-        resp = b""\n\
-        while True:\n\
-            d = s.recv(4096)\n\
-            if not d: break\n\
-            resp += d\n\
-        s.close()\n\
-        return resp\n\
-    except Exception as e:\n\
-        return ("HTTP/1.0 502 Bad Gateway\\r\\nContent-Type: text/plain\\r\\n\\r\\nBridge error: " + str(e)).encode()\n\
+function forward(port, req) {\n\
+    return new Promise((resolve) => {\n\
+        const sock = new net.Socket();\n\
+        let resp = Buffer.alloc(0);\n\
+        sock.setTimeout(5000);\n\
+        sock.connect(port, "127.0.0.1", () => sock.write(req));\n\
+        sock.on("data", (d) => { resp = Buffer.concat([resp, d]); });\n\
+        sock.on("end", () => resolve(resp));\n\
+        sock.on("timeout", () => { sock.destroy(); resolve(Buffer.from("HTTP/1.0 504 Timeout\\r\\n\\r\\n")); });\n\
+        sock.on("error", (e) => resolve(Buffer.from("HTTP/1.0 502 Bad Gateway\\r\\n\\r\\n" + e.message)));\n\
+    });\n\
+}\n\
 \n\
-def main():\n\
-    tty = open("/dev/ttyS1", "r+b", buffering=0)\n\
-    buf = b""\n\
-    while True:\n\
-        chunk = tty.read(1)\n\
-        if not chunk: continue\n\
-        buf += chunk\n\
-        while b"\\x02" in buf and b"\\x03" in buf:\n\
-            s = buf.index(b"\\x02")\n\
-            e = buf.index(b"\\x03", s + 1)\n\
-            if e <= s: break\n\
-            frame = buf[s+1:e]\n\
-            buf = buf[e+1:]\n\
-            try:\n\
-                colon = frame.index(b":")\n\
-                port = int(frame[:colon])\n\
-                req = frame[colon+1:]\n\
-                resp = forward(port, req)\n\
-                tty.write(b"\\x02" + resp + b"\\x03")\n\
-                tty.flush()\n\
-            except Exception as ex:\n\
-                err = ("HTTP/1.0 500 Internal Server Error\\r\\nContent-Type: text/plain\\r\\n\\r\\n" + str(ex)).encode()\n\
-                tty.write(b"\\x02" + err + b"\\x03")\n\
-                tty.flush()\n\
+const tty = fs.openSync("/dev/ttyS1", "r+");\n\
+const ttyRead = fs.createReadStream(null, { fd: tty, autoClose: false });\n\
+const ttyWrite = (buf) => fs.writeSync(tty, buf);\n\
 \n\
-main()\n\
-' > /usr/local/bin/http-bridge && chmod +x /usr/local/bin/http-bridge
+let buf = Buffer.alloc(0);\n\
+ttyRead.on("data", async (chunk) => {\n\
+    buf = Buffer.concat([buf, chunk]);\n\
+    while (true) {\n\
+        const s = buf.indexOf(0x02);\n\
+        if (s === -1) break;\n\
+        const e = buf.indexOf(0x03, s + 1);\n\
+        if (e === -1) break;\n\
+        const frame = buf.slice(s + 1, e);\n\
+        buf = buf.slice(e + 1);\n\
+        const colon = frame.indexOf(58); // ":"\n\
+        if (colon === -1) continue;\n\
+        const port = parseInt(frame.slice(0, colon).toString());\n\
+        const req = frame.slice(colon + 1);\n\
+        const resp = await forward(port, req);\n\
+        const out = Buffer.concat([Buffer.from([0x02]), resp, Buffer.from([0x03])]);\n\
+        ttyWrite(out);\n\
+    }\n\
+});\n\
+' > /usr/local/bin/http-bridge.js && chmod +x /usr/local/bin/http-bridge.js
 
 # Custom init: banner shows Node version, starts http-bridge, drops to shell.
 RUN printf '#!/bin/sh\n\

@@ -10,6 +10,7 @@ import { V86Engine, type BootState } from './lib/v86/engine'
 import { readTosAccepted, writeTosAccepted } from './lib/tos'
 import TosModal from './components/TosModal'
 import { wipeBurnerSession } from './lib/wipe'
+import HelpTab from './components/layout/HelpTab'
 
 // ---- layout constants -------------------------------------------------------
 const INITIAL_COL_WIDTHS: PaneWidths = { left: 15, center: 52, right: 33 }
@@ -82,6 +83,9 @@ export default function App() {
     const [files, setFiles] = useState<string[]>([])
     const [isDragging, setIsDragging] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
+
+    // tabs
+    const [activeRightTab, setActiveRightTab] = useState<'preview' | 'help'>('help')
 
     // ---- drag-resize --------------------------------------------------------
     const onMouseDown = useCallback(
@@ -325,14 +329,39 @@ export default function App() {
                         <CodeEditor />
                     </div>
 
-                    <div
-                        className="w-1 shrink-0 cursor-col-resize bg-[#30363d] hover:bg-[#58a6ff] transition-colors"
+                    <div className="w-1 shrink-0 cursor-col-resize bg-[#30363d] hover:bg-[#58a6ff] transition-colors"
                         onMouseDown={onMouseDown('right')}
                         data-testid="resize-handle-right"
                     />
 
-                    <div className="overflow-hidden flex-1" data-testid="pane-preview">
-                        <Preview isRunning={bootState === 'running'} onRefresh={(port) => engineRef.current!.requestPortHttp(port)} />
+                    <div className="overflow-hidden flex-1 flex flex-col bg-[#161b22]" data-testid="pane-right">
+                        <div className="flex border-b border-[#30363d] shrink-0 bg-[#0d1117]">
+                            <button
+                                onClick={() => setActiveRightTab('preview')}
+                                className={`px-4 py-2 text-xs font-semibold focus:outline-none ${activeRightTab === 'preview'
+                                    ? 'bg-[#161b22] text-[#e6edf3] border-t-2 border-[#58a6ff]'
+                                    : 'text-[#8b949e] hover:bg-[#161b22] border-t-2 border-transparent'
+                                    }`}
+                            >
+                                Preview
+                            </button>
+                            <button
+                                onClick={() => setActiveRightTab('help')}
+                                className={`px-4 py-2 text-xs font-semibold focus:outline-none ${activeRightTab === 'help'
+                                    ? 'bg-[#161b22] text-[#e6edf3] border-t-2 border-[#58a6ff]'
+                                    : 'text-[#8b949e] hover:bg-[#161b22] border-t-2 border-transparent'
+                                    }`}
+                            >
+                                Help & Docs
+                            </button>
+                        </div>
+                        <div className="flex-1 relative overflow-hidden">
+                            {activeRightTab === 'preview' ? (
+                                <Preview isRunning={bootState === 'running'} onRefresh={(port) => engineRef.current!.requestPortHttp(port)} />
+                            ) : (
+                                <HelpTab />
+                            )}
+                        </div>
                     </div>
                 </div>
 
